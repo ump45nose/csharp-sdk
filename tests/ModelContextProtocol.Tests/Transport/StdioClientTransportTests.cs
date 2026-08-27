@@ -255,7 +255,11 @@ public class StdioClientTransportTests(ITestOutputHelper testOutputHelper) : Log
         }
         finally
         {
-            Directory.Delete(rootDirectory, recursive: true);
+            try
+            {
+                Directory.Delete(rootDirectory, recursive: true);
+            }
+            catch (UnauthorizedAccessException) { }
         }
     }
 
