@@ -209,24 +209,31 @@ public class StdioClientTransportTests(ITestOutputHelper testOutputHelper) : Log
         string executablePath = Path.Combine(rootDirectory, relativeExecutablePath);
         string executableDirectory = Path.GetDirectoryName(executablePath)!;
 
-        Directory.CreateDirectory(executableDirectory);
         try
         {
-            foreach (string sourcePath in Directory.EnumerateFiles(AppContext.BaseDirectory))
+            string sourceDirectory = Path.Combine(AppContext.BaseDirectory, nameof(ExecutableWithSpacesHandledCorrectly)) + Path.DirectorySeparatorChar;
+            foreach (string sourcePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
             {
-                File.Copy(sourcePath, Path.Combine(executableDirectory, Path.GetFileName(sourcePath)));
+                string destinationPath = Path.Combine(executableDirectory, sourcePath[sourceDirectory.Length..]);
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+                File.Copy(sourcePath, destinationPath);
             }
 
-            string sourceExecutablePath = Path.Combine(AppContext.BaseDirectory, PlatformDetection.IsWindows ? "TestServer.exe" : "TestServer");
+            string sourceExecutablePath = Path.Combine(sourceDirectory, PlatformDetection.IsWindows ? "TestServer.exe" : "TestServer");
             File.Copy(sourceExecutablePath, executablePath, overwrite: true);
 
-            string command = useRootedPath ? executablePath : Path.Combine(rootDirectoryName, relativeExecutablePath);
+            // .NET Framework loads binding redirects from a configuration file matching the executable's name.
+            string sourceConfigurationPath = sourceExecutablePath + ".config";
+            if (File.Exists(sourceConfigurationPath))
+            {
+                File.Copy(sourceConfigurationPath, executablePath + ".config");
+            }
 
             var capturedArgument = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             var transport = new StdioClientTransport(new()
             {
                 Name = "TestServer",
-                Command = command,
+                Command = useRootedPath ? executablePath : Path.Combine(rootDirectoryName, relativeExecutablePath),
                 Arguments = ["--echo-cli-arg-and-exit", $"--cli-arg={CliArgumentValue}"],
                 StandardErrorLines = line =>
                 {
